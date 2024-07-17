@@ -1,4 +1,4 @@
-#include <ESP32CAN.h>
+#include <ESP32CAN.h> //https://github.com/miwagner/ESP32-Arduino-CAN
 #include <CAN_config.h>
 
 // CAN configuration
@@ -57,12 +57,14 @@ void setup() {
 
   // Set up CAN configuration
   CAN_cfg.speed = CAN_SPEED_1000KBPS;
-  CAN_cfg.tx_pin_id = GPIO_NUM_5; // TX pin
-  CAN_cfg.rx_pin_id = GPIO_NUM_4; // RX pin
+  CAN_cfg.tx_pin_id = GPIO_NUM_15; // TX pin
+  CAN_cfg.rx_pin_id = GPIO_NUM_14; // RX pin
   CAN_cfg.rx_queue = xQueueCreate(rx_queue_size, sizeof(CAN_frame_t));
 
   // Initialize CAN module
   ESP32Can.CANInit();
+
+
 
 
   // if (!ESP32Can.CANInit()) {
