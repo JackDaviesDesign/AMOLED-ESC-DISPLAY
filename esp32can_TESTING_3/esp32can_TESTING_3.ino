@@ -5,7 +5,7 @@
 // CAN_device_t CAN_cfg; // CAN Config
 // const int rx_queue_size = 10;
 
-// Change CAN_SPEED & Tx,Rx pins in setup below to match hardware. Silixcon default CAN speed is 1000KBPS
+// Change CAN_SPEED & Tx,Rx pins in setup below to match hardware. Silixcon default CAN speed is 1000KBPS / 1MBPS
 
 const uint8_t cellSeriesCount = 21; // Number of batt cells in series. Used to calc V per cell.
 
