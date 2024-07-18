@@ -6,4 +6,4 @@ To-Do
 - [x] Read CANBUS values & parse into variables
 - [x] Create debug screen & display all values on screen for testing
 - [x] Implament UI design and intergrate specific values
-- [ ] Add connected sign in corner to show connection status
+- [x] Add connected sign in corner to show connection status
