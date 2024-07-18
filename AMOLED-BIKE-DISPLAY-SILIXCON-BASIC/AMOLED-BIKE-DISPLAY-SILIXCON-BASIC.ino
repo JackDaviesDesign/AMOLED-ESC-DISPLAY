@@ -24,6 +24,11 @@ TFT_eSprite sprite = TFT_eSprite(&tft);
 // Change CAN_SPEED & Tx,Rx pins in setup below to match hardware. Silixcon default CAN speed is 1000KBPS / 1MBPS
 
 const uint8_t cellSeriesCount = 21; // Number of batt cells in series. Used to calc V per cell.
+uint16_t SOCAngle; // Value used to drive the ring guage
+uint16_t SOCGuageColor; // Colour change of guage
+uint16_t powerGuage; // used for the power meter slider
+uint16_t powerGuageColor;
+bool canConnected;
 
 // Incoming CAN Values from Silixcon
 
@@ -43,16 +48,16 @@ uint16_t motorWatts; // Motor power [W]
 uint8_t mapType;  // Map type: 1 - Normal   2 - Restricted   3 - reverse   4 - boost   5 - Reserve map
 uint8_t SOC; // SOC [%]
 float battVoltage; // Battery voltage [0.01 V]
-uint16_t battCurrent; // Battery current [0.02 A]
+float battCurrent; // Battery current [0.02 A]
 
 // ODO_trip
 float TRIP; // TRIP [0.01 km ], distance counter. Can by reset from display or CAN command.
 float ODO; // ODO [0.1 km], total distance counter
 
 // relativeValues   -   Mostly used by the display for bargrafs
-uint16_t relMotorPhaseCurrent; // Relative motor phase current -32767 - 32767. (32767 = iref)
+int16_t relMotorPhaseCurrent; // Relative motor phase current -32767 - 32767. (32767 = iref)
 uint16_t relDriverTotLimit; // Driver total limit. 32767 = Full power  0 = Zero power (100% limitation)
-uint16_t relSpeed; // Relative speed (-323767 - 32767). Only works if parameter /maps/maxkph is set. The parameter is the full value.
+int16_t relSpeed; // Relative speed (-323767 - 32767). Only works if parameter /maps/maxkph is set. The parameter is the full value.
 
 // temps
 uint16_t motorRThermistor; // Driver /driver/motor/RThermistor  Disconnected sensor = 0xFFFF
@@ -98,6 +103,7 @@ void recieveCANData(){
 
   if (ESP32CAN_OK == ESP32Can.CANReadFrame(&rx_frame)) {  /* only print when CAN message is received*/
     
+  canConnected = true;
     
     // ---------- lynxStatus - 0x600 ----------
 
@@ -197,7 +203,9 @@ void recieveCANData(){
         mapType = data[1]; // 8-bit integer // SOC %
         SOC = data[2]; // 8-bit integer // SOH %
         battVoltage = data[4] | (data[5] << 8); // 16-bit integer // batt voltage
+        battVoltage = battVoltage/100;
         battCurrent = data[6] | (data[7] << 8); // 16-bit integer // batt current        
+        battCurrent = battCurrent/100;
 
         // Print the extracted values
         Serial.print("Map Type : ");
@@ -205,11 +213,11 @@ void recieveCANData(){
         Serial.print("SOC: ");
         Serial.println(SOC);
         Serial.print("Batt Voltage: ");
-        Serial.println(battVoltage/100);
+        Serial.println(battVoltage);
         Serial.print("Cell Voltage: ");
         Serial.println((battVoltage/100)/cellSeriesCount); // V per cell.
         Serial.print("Batt Current: ");
-        Serial.println(battCurrent/100);
+        Serial.println(battCurrent);
 
       } else {
         Serial.println("Received data length is less than expected.");
@@ -347,6 +355,10 @@ if (rx_frame.identifier == ODO_trip) { // Check if the message ID matches the fi
 
 
   }
+
+  else {
+    canConnected = false; // used to show connection status 
+  }
 }
 
 
@@ -382,111 +394,293 @@ void draw()
   sprite.loadFont(OrbitronBlack15);
   sprite.drawString("KPH",229,10);
 
-  // lynxStatus
-  sprite.setTextDatum(5);
-  sprite.drawString("PowerMap - ",150,150);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(currentPowerMap,160,150);
+  // connection status
+  sprite.setTextDatum(0);
+  if (canConnected == true) {
+    sprite.drawString("CON",10,10);
+  }
+  // else {
+  //   sprite.drawString("NOT CONNECTED",10,10);
+  // }
+
+
+
+  // SOC ring
+
+  SOCAngle = map(SOC, 0, 100, 0, 360); // remap SOC value to use in the ring slider guage
+
+  if(SOC == 0) {
+    SOCGuageColor = 0xf968; // turn ring red if SOC is 0
+  }
+  else if (SOC < 25) {
+    SOCGuageColor = 0xfbc8; // turn ring orange if SOC is less than 25%
+  }
+  else {
+    SOCGuageColor = 0x7E7C; // normal ring color
+  }
+
+  //bg ring
+  sprite.drawSmoothArc(62/* x */, 258/* y */, 46/* r */, 42/* internal r */, 0/* start ang */, 360/* end ang */, 0xE71C/* fg color */, 0x0000/* bg color */, 1/* round ends 1 no 0 */);
+  // front ring
+  sprite.drawSmoothArc(62/* x */, 258/* y */, 50/* r */, 40/* internal r */, 0/* start ang */, SOCAngle/* end ang */, SOCGuageColor/* fg color */, 0x0000/* bg color */, 1/* round ends 1 no 0 */);
   
-  sprite.setTextDatum(5);
-  sprite.drawString("StatusWord - ",150,170);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(driverStatusWord,160,170);
+
+
+  // power guage
+
+  vehicleSpeed++;
+
+    if(vehicleSpeed > 99) {
+    vehicleSpeed = 0;
+  }
+
+    
+
+    if(SOC == 0) {
+    SOC = SOC+100;
+  }
+  SOC--;
+
+  relMotorPhaseCurrent = relMotorPhaseCurrent+500;
+
+  if(relMotorPhaseCurrent > 32767) {
+    relMotorPhaseCurrent = -32767;
+  }
+
+
+  if(relMotorPhaseCurrent > 0) {
+    powerGuage = map(relMotorPhaseCurrent, 0, 32767, 0, 220); // remap SOC value to use in the power slider guage
+    powerGuageColor = 0xffff; // normal color
+    
+  }
+  if (relMotorPhaseCurrent > 24500) { // about 75% power turn to orange
+    powerGuageColor = 0xfbc8;
+  }
+  else if (relMotorPhaseCurrent < 0) { // negative value is regen
+    powerGuage = map(relMotorPhaseCurrent, 0, -32767, 0, 220); // remap SOC value to use in the power slider guage
+    powerGuageColor = 0x0720; // regen turn green 
+  }
+
+  sprite.fillRect(12, 150, powerGuage, 40, powerGuageColor); // main bar
+
+  // sprite.drawNumber(powerGuage,62,450);
+  // sprite.drawNumber(relMotorPhaseCurrent,62,470);
+
+
+  // // vertical thiner
+  // sprite.fillRect(20, 150, 8, 40, TFT_BLACK);
+  // sprite.fillRect(36, 150, 8, 40, TFT_BLACK); 
+  // sprite.fillRect(52, 150, 8, 40, TFT_BLACK); 
+  // sprite.fillRect(68, 150, 8, 40, TFT_BLACK); 
+  // sprite.fillRect(84, 150, 8, 40, TFT_BLACK); 
+  // sprite.fillRect(100, 150, 8, 40, TFT_BLACK); 
+  // sprite.fillRect(116, 150, 8, 40, TFT_BLACK); 
+  // sprite.fillRect(132, 150, 8, 40, TFT_BLACK); 
+  // sprite.fillRect(148, 150, 8, 40, TFT_BLACK);  
+  // sprite.fillRect(164, 150, 8, 40, TFT_BLACK);
+  // sprite.fillRect(180, 150, 8, 40, TFT_BLACK); 
+  // sprite.fillRect(196, 150, 8, 40, TFT_BLACK); 
+  // sprite.fillRect(212, 150, 8, 40, TFT_BLACK);  
+
+
+  // vertical wider
+  sprite.fillRect(26, 150, 8, 40, TFT_BLACK);
+  sprite.fillRect(48, 150, 8, 40, TFT_BLACK); 
+  sprite.fillRect(70, 150, 8, 40, TFT_BLACK); 
+  sprite.fillRect(92, 150, 8, 40, TFT_BLACK); 
+  sprite.fillRect(114, 150, 8, 40, TFT_BLACK); 
+  sprite.fillRect(136, 150, 8, 40, TFT_BLACK); 
+  sprite.fillRect(158, 150, 8, 40, TFT_BLACK); 
+  sprite.fillRect(180, 150, 8, 40, TFT_BLACK); 
+  sprite.fillRect(202, 150, 8, 40, TFT_BLACK);  
+  sprite.fillRect(224, 150, 8, 40, TFT_BLACK);
+
+
+  // //////////.  OLD
+
+  // // blackout bars to create grid
+  // // horizontal
+  // sprite.fillRect(10, 156, 220, 4, TFT_BLACK); 
+  // sprite.fillRect(10, 168, 220, 4, TFT_BLACK);
+  // sprite.fillRect(10, 180, 220, 4, TFT_BLACK);
   
-  sprite.setTextDatum(5);
-  sprite.drawString("LimitWord - ",150,190);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(driverLimitWord,160,190);
+  // // vertical
+  // sprite.fillRect(18, 148, 4, 44, TFT_BLACK);
+  // sprite.fillRect(30, 148, 4, 44, TFT_BLACK); 
+  // sprite.fillRect(42, 148, 4, 44, TFT_BLACK); 
+  // sprite.fillRect(54, 148, 4, 44, TFT_BLACK); 
+  // sprite.fillRect(66, 148, 4, 44, TFT_BLACK); 
+  // sprite.fillRect(78, 148, 4, 44, TFT_BLACK); 
+  // sprite.fillRect(90, 148, 4, 44, TFT_BLACK); 
+  // sprite.fillRect(102, 148, 4, 44, TFT_BLACK); 
+  // sprite.fillRect(114, 148, 4, 44, TFT_BLACK);  
+  // sprite.fillRect(126, 148, 4, 44, TFT_BLACK);
+  // sprite.fillRect(138, 148, 4, 44, TFT_BLACK);
+  // sprite.fillRect(150, 148, 4, 44, TFT_BLACK);
+  // sprite.fillRect(162, 148, 4, 44, TFT_BLACK);
+  // sprite.fillRect(174, 148, 4, 44, TFT_BLACK);
+  // sprite.fillRect(186, 148, 4, 44, TFT_BLACK);
+  // sprite.fillRect(198, 148, 4, 44, TFT_BLACK);
+  // sprite.fillRect(210, 148, 4, 44, TFT_BLACK);
+  // sprite.fillRect(222, 148, 4, 44, TFT_BLACK);  
 
-  sprite.setTextDatum(5);
-  sprite.drawString("ErrorWord - ",150,210);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(driverErrorWord,160,210);
 
-  // lynxMotorStatus
-  sprite.setTextDatum(5);
-  sprite.drawString("Motor A - ",150,230);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(motorCurrent,160,230);
 
-  sprite.setTextDatum(5);
-  sprite.drawString("Motor RPM - ",150,250);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(motorRpm,160,250);
 
-  sprite.setTextDatum(5);
-  sprite.drawString("Speed KPH - ",150,270);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(vehicleSpeed,160,270);
+
+
+
+  sprite.setTextDatum(4);
+  sprite.setTextColor(0xFFFF);
+  sprite.loadFont(OrbitronBlack35);
+  //sprite.drawNumber(int(round(SOC*100)), 62, 260);
+  sprite.drawNumber(SOC, 62, 255);
+  //sprite.drawNumber(SOC*100, 60, 350);
+  //sprite.drawNumber(SOCAngle, 60, 450); 
+
+  // draw values
+  // drawFloat(value, precision, x, y, font);
+   sprite.drawNumber(motorWatts,178,255);
+   sprite.drawNumber(battCurrent,62,370);
+   sprite.drawFloat(battVoltage/cellSeriesCount,2,178,370);
+
+   sprite.drawFloat(TRIP,2,60,480);
+   sprite.drawFloat(ODO,2,178,480);
+
+
   
-  sprite.setTextDatum(5);
-  sprite.drawString("Motor W - ",150,290);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(motorWatts,160,290);  
+  // label for SOC
+  sprite.loadFont(OrbitronBlack15);
+  sprite.drawString(String("SOC"), 62, 280);
 
-  // lynxBatteryStatus
-  sprite.setTextDatum(5);
-  sprite.drawString("Map Type - ",150,310);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(mapType,160,310);
+  // labels
+   sprite.drawString("MOTOR-W", 178, 280);
+   sprite.drawString("BATT-A", 60, 395);
+   sprite.drawString("CELL-V", 178, 395);
 
-  sprite.setTextDatum(5);
-  sprite.drawString("SOC % - ",150,330);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(SOC,160,330);
+   sprite.drawString("TRIP", 60, 505);
+   sprite.drawString("ODO", 178, 505);
 
-  sprite.setTextDatum(5);
-  sprite.drawString("Batt V - ",150,350);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(battVoltage,160,350);
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // // DEBUG VALUES DISPLAY
+
+  // // lynxStatus
+  // sprite.setTextDatum(5);
+  // sprite.drawString("PowerMap - ",150,150);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(currentPowerMap,160,150);
   
-  sprite.setTextDatum(5);
-  sprite.drawString("Batt A - ",150,370);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(battCurrent,160,370); 
+  // sprite.setTextDatum(5);
+  // sprite.drawString("StatusWord - ",150,170);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(driverStatusWord,160,170);
+  
+  // sprite.setTextDatum(5);
+  // sprite.drawString("LimitWord - ",150,190);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(driverLimitWord,160,190);
 
-  // ODO_trip
-  sprite.setTextDatum(5);
-  sprite.drawString("Trip - ",150,390);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(TRIP,160,390);
+  // sprite.setTextDatum(5);
+  // sprite.drawString("ErrorWord - ",150,210);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(driverErrorWord,160,210);
 
-  sprite.setTextDatum(5);
-  sprite.drawString("ODO - ",150,410);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(ODO,160,410);
+  // // lynxMotorStatus
+  // sprite.setTextDatum(5);
+  // sprite.drawString("Motor A - ",150,230);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(motorCurrent,160,230);
+
+  // sprite.setTextDatum(5);
+  // sprite.drawString("Motor RPM - ",150,250);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(motorRpm,160,250);
+
+  // sprite.setTextDatum(5);
+  // sprite.drawString("Speed KPH - ",150,270);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(vehicleSpeed,160,270);
+  
+  // sprite.setTextDatum(5);
+  // sprite.drawString("Motor W - ",150,290);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(motorWatts,160,290);  
+
+  // // lynxBatteryStatus
+  // sprite.setTextDatum(5);
+  // sprite.drawString("Map Type - ",150,310);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(mapType,160,310);
+
+  // sprite.setTextDatum(5);
+  // sprite.drawString("SOC % - ",150,330);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(SOC,160,330);
+
+  // sprite.setTextDatum(5);
+  // sprite.drawString("Batt V - ",150,350);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(battVoltage,160,350);
+  
+  // sprite.setTextDatum(5);
+  // sprite.drawString("Batt A - ",150,370);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(battCurrent,160,370); 
+
+  // // ODO_trip
+  // sprite.setTextDatum(5);
+  // sprite.drawString("Trip - ",150,390);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(TRIP,160,390);
+
+  // sprite.setTextDatum(5);
+  // sprite.drawString("ODO - ",150,410);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(ODO,160,410);
  
-  // relativeValues
-  sprite.setTextDatum(5);
-  sprite.drawString("M Phase A - ",150,430);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(relMotorPhaseCurrent,160,430);
+  // // relativeValues
+  // sprite.setTextDatum(5);
+  // sprite.drawString("M Phase A - ",150,430);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(relMotorPhaseCurrent,160,430);
 
-  sprite.setTextDatum(5);
-  sprite.drawString("Tot Limit - ",150,450);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(relDriverTotLimit,160,450);
+  // sprite.setTextDatum(5);
+  // sprite.drawString("Tot Limit - ",150,450);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(relDriverTotLimit,160,450);
 
-  sprite.setTextDatum(5);
-  sprite.drawString("Rel Speed - ",150,470);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(relSpeed,160,470);
+  // sprite.setTextDatum(5);
+  // sprite.drawString("Rel Speed - ",150,470);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(relSpeed,160,470);
 
-  // relativeValues
-  sprite.setTextDatum(5);
-  sprite.drawString("M R Therm - ",150,490);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(motorRThermistor,160,490);
+  // // relativeValues
+  // sprite.setTextDatum(5);
+  // sprite.drawString("M R Therm - ",150,490);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(motorRThermistor,160,490);
 
-  sprite.setTextDatum(5);
-  sprite.drawString("PTC Temp - ",150,510);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(ptcTemp,160,510);
+  // sprite.setTextDatum(5);
+  // sprite.drawString("PTC Temp - ",150,510);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(ptcTemp,160,510);
 
-  sprite.setTextDatum(5);
-  sprite.drawString("Driver Temp - ",150,530);
-  sprite.setTextDatum(3);
-  sprite.drawNumber(drivetTemp,160,530);
+  // sprite.setTextDatum(5);
+  // sprite.drawString("Driver Temp - ",150,530);
+  // sprite.setTextDatum(3);
+  // sprite.drawNumber(drivetTemp,160,530);
 
 
 
@@ -498,13 +692,13 @@ void draw()
   sprite.drawLine(236, 532, 236, 4, lineColor);
 
   // horizontal lines
-  //sprite.drawLine(4, 143, 236, 143, lineColor);
-  //sprite.drawLine(4, 198, 236, 198, lineColor);
-  //sprite.drawLine(4, 314, 236, 314, lineColor);
-  //sprite.drawLine(4, 430, 236, 430, lineColor);
+  sprite.drawLine(4, 142, 236, 142, lineColor);
+  sprite.drawLine(4, 198, 236, 198, lineColor);
+  sprite.drawLine(4, 314, 236, 314, lineColor);
+  sprite.drawLine(4, 430, 236, 430, lineColor);
 
   // vertical lines
-  //sprite.drawLine(120, 198, 120, 430, lineColor);
+  sprite.drawLine(120, 198, 120, 430, lineColor);
 
   // draw the accent corners
   sprite.fillRect(2, 2, 4, 8, lineAccColor);
@@ -520,8 +714,8 @@ void draw()
   sprite.fillRect(230, 530, 8, 4, lineAccColor);
 
   //LHS
-  sprite.fillRect(2, 137, 4, 12, lineAccColor);
-  sprite.fillRect(2, 141, 8, 4, lineAccColor);
+  sprite.fillRect(2, 136, 4, 12, lineAccColor); // top of power bar
+  sprite.fillRect(2, 140, 8, 4, lineAccColor);
 
   sprite.fillRect(2, 192, 4, 12, lineAccColor);
   sprite.fillRect(2, 196, 8, 4, lineAccColor);
@@ -533,18 +727,18 @@ void draw()
   sprite.fillRect(2, 428, 8, 4, lineAccColor);
 
   //MID
-  // sprite.fillRect(114, 196, 12, 4, lineAccColor);
-  // sprite.fillRect(118, 196, 4, 8, lineAccColor);
+  sprite.fillRect(114, 195, 12, 4, lineAccColor);
+  sprite.fillRect(118, 195, 4, 8, lineAccColor);
 
-  // sprite.fillRect(114, 312, 12, 4, lineAccColor);
-  // sprite.fillRect(118, 308, 4, 12, lineAccColor);
+  sprite.fillRect(114, 312, 12, 4, lineAccColor);
+  sprite.fillRect(118, 308, 4, 12, lineAccColor);
 
-  // sprite.fillRect(114, 428, 12, 4, lineAccColor);
-  // sprite.fillRect(118, 424, 4, 8, lineAccColor);
+  sprite.fillRect(114, 428, 12, 4, lineAccColor);
+  sprite.fillRect(118, 424, 4, 8, lineAccColor);
 
   //RHS
-  sprite.fillRect(234, 137, 4, 12, lineAccColor);
-  sprite.fillRect(230, 141, 8, 4, lineAccColor);
+  sprite.fillRect(234, 136, 4, 12, lineAccColor); // top of power bar
+  sprite.fillRect(230, 140, 8, 4, lineAccColor);
 
   sprite.fillRect(234, 192, 4, 12, lineAccColor);
   sprite.fillRect(230, 196, 8, 4, lineAccColor);
