@@ -7,3 +7,4 @@ To-Do
 - [x] Create debug screen & display all values on screen for testing
 - [x] Implement UI design and intergrate specific values
 - [x] Add connected sign in corner to show connection status
+- [ ] Draw lighting bolt icon on SOC tile
