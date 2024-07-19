@@ -426,27 +426,28 @@ void draw()
   
 
 
+  // SIMULATE VALUES TESTING
+
+  // vehicleSpeed++;
+
+  //   if(vehicleSpeed > 99) {
+  //   vehicleSpeed = 0;
+  // }
+
+  //   if(SOC == 0) {
+  //   SOC = SOC+100;
+  // }
+  // SOC--;
+
+  // relMotorPhaseCurrent = relMotorPhaseCurrent+500;
+
+  // if(relMotorPhaseCurrent > 32767) {
+  //   relMotorPhaseCurrent = -32767;
+  // }
+
+
+
   // power guage
-
-  vehicleSpeed++;
-
-    if(vehicleSpeed > 99) {
-    vehicleSpeed = 0;
-  }
-
-    
-
-    if(SOC == 0) {
-    SOC = SOC+100;
-  }
-  SOC--;
-
-  relMotorPhaseCurrent = relMotorPhaseCurrent+500;
-
-  if(relMotorPhaseCurrent > 32767) {
-    relMotorPhaseCurrent = -32767;
-  }
-
 
   if(relMotorPhaseCurrent > 0) {
     powerGuage = map(relMotorPhaseCurrent, 0, 32767, 0, 220); // remap SOC value to use in the power slider guage
@@ -461,7 +462,7 @@ void draw()
     powerGuageColor = 0x0720; // regen turn green 
   }
 
-  sprite.fillRect(12, 150, powerGuage, 40, powerGuageColor); // main bar
+  sprite.fillRect(14, 152, powerGuage, 36, powerGuageColor); // main bar
 
   // sprite.drawNumber(powerGuage,62,450);
   // sprite.drawNumber(relMotorPhaseCurrent,62,470);
@@ -495,6 +496,10 @@ void draw()
   sprite.fillRect(202, 150, 8, 40, TFT_BLACK);  
   sprite.fillRect(224, 150, 8, 40, TFT_BLACK);
 
+
+  // blackout bars to create grid
+  // horizontal
+  sprite.fillRect(12, 165, 212, 10, TFT_BLACK); 
 
   // //////////.  OLD
 
@@ -698,7 +703,7 @@ void draw()
   sprite.drawLine(4, 430, 236, 430, lineColor);
 
   // vertical lines
-  sprite.drawLine(120, 198, 120, 430, lineColor);
+  sprite.drawLine(120, 198, 120, 532, lineColor);
 
   // draw the accent corners
   sprite.fillRect(2, 2, 4, 8, lineAccColor);
