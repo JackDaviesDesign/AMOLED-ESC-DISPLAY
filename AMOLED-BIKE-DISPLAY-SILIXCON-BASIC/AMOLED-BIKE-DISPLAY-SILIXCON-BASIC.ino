@@ -91,7 +91,7 @@ const uint32_t temps = 0x628; // Sent every 800ms
 void setup()
 {
 
-  ESP32Can.CANInit(GPIO_NUM_15, GPIO_NUM_14, ESP32CAN_SPEED_1MBPS);
+  ESP32Can.CANInit(GPIO_NUM_15, GPIO_NUM_14, ESP32CAN_SPEED_1MBPS); // TX PIN , RX PIN , BAUD RATE
 
   pinMode(38, OUTPUT); // enables the AMOLED screen
   digitalWrite(38, HIGH);
