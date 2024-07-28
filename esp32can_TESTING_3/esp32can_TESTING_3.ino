@@ -59,7 +59,7 @@ const uint32_t temps = 0x628; // Sent every 800ms
 void setup() {
   Serial.begin(115200);
 
-  ESP32Can.CANInit(GPIO_NUM_15, GPIO_NUM_14, ESP32CAN_SPEED_1MBPS);
+  ESP32Can.CANInit(GPIO_NUM_15, GPIO_NUM_14, ESP32CAN_SPEED_1MBPS); // TX PIN , RX PIN , BAUD RATE
 
 }
 

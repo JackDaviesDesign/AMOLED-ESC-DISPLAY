@@ -11,6 +11,18 @@
 #include "OrbitronBlack30.h"
 #include "OrbitronBlack15.h"
 
+// TaskHandle_t Task1;
+// TaskHandle_t Task2;
+
+
+// interval timer
+unsigned long previousMillisrecieveCANData = 0;  // will store last time LED was updated
+const long intervalrecieveCANData = 100;  // interval at which to run "recieveCANData" function
+
+unsigned long previousMillisDraw = 0;  // will store last time LED was updated
+const long intervalDraw = 100;  // interval at which to run "draw" function
+
+
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite sprite = TFT_eSprite(&tft);
 
@@ -94,9 +106,37 @@ void setup()
   rm67162_init();  // amoled lcd initialization
   lcd_brightness(200);
   
+  // //create a task that will be executed in the Task1code() function, with priority 1 and executed on core 0
+  // xTaskCreatePinnedToCore(
+  //                   recieveCANData,   /* Task function. */
+  //                   "recieveCANData",     /* name of task. */
+  //                   10000,       /* Stack size of task */
+  //                   NULL,        /* parameter of the task */
+  //                   1,           /* priority of the task */
+  //                   &Task1,      /* Task handle to keep track of created task */
+  //                   1);          /* pin task to core 0 */                  
+  // delay(500);
+
+  //   //create a task that will be executed in the Task2code() function, with priority 1 and executed on core 1
+  // xTaskCreatePinnedToCore(
+  //                   draw,   /* Task function. */
+  //                   "recieveCANData",     /* name of task. */
+  //                   10000,       /* Stack size of task */
+  //                   NULL,        /* parameter of the task */
+  //                   1,           /* priority of the task */
+  //                   &Task2,      /* Task handle to keep track of created task */
+  //                   0);          /* pin task to core 1 */
+  //   delay(500);
+
 }
 
 void recieveCANData(){
+
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillisrecieveCANData >= intervalrecieveCANData) {
+    previousMillisrecieveCANData = currentMillis;
+
+
 
   // Check for received CAN messages
   twai_message_t rx_frame;
@@ -105,40 +145,40 @@ void recieveCANData(){
     
   canConnected = true;
     
-    // ---------- lynxStatus - 0x600 ----------
+    // // ---------- lynxStatus - 0x600 ----------
 
-    if (rx_frame.identifier == lynxStatus) { // Check if the message ID matches the filter ID
-      Serial.print("Filtered CAN message received, ID: 0x");
-      Serial.println(rx_frame.identifier, HEX);
+    // if (rx_frame.identifier == lynxStatus) { // Check if the message ID matches the filter ID
+    //   Serial.print("Filtered CAN message received, ID: 0x");
+    //   Serial.println(rx_frame.identifier, HEX);
 
-      // Read the incoming data
-      uint8_t data[8];
-      int dataLength = rx_frame.data_length_code; // Get the number of bytes in the received message
-      for (int i = 0; i < dataLength; i++) {
-        data[i] = rx_frame.data[i];
-      }
+    //   // Read the incoming data
+    //   uint8_t data[8];
+    //   int dataLength = rx_frame.data_length_code; // Get the number of bytes in the received message
+    //   for (int i = 0; i < dataLength; i++) {
+    //     data[i] = rx_frame.data[i];
+    //   }
 
-      if (dataLength >= 7) { // Ensure there are at least 7 bytes of data
-        // Extracting values considering little-endian format
-        currentPowerMap = data[2]; // 8-bit integer
-        driverStatusWord = data[3]; // 8-bit integer
-        driverLimitWord = data[4] | (data[5] << 8); // 16-bit integer
-        driverErrorWord = data[6] | (data[7] << 8); // 16-bit integer       
+    //   if (dataLength >= 7) { // Ensure there are at least 7 bytes of data
+    //     // Extracting values considering little-endian format
+    //     currentPowerMap = data[2]; // 8-bit integer
+    //     driverStatusWord = data[3]; // 8-bit integer
+    //     driverLimitWord = data[4] | (data[5] << 8); // 16-bit integer
+    //     driverErrorWord = data[6] | (data[7] << 8); // 16-bit integer       
 
-        // Print the extracted values
-        Serial.print("Current Power Map: ");
-        Serial.println(currentPowerMap);
-        Serial.print("Driver Status Word: ");
-        Serial.println(driverStatusWord);
-        Serial.print("Driver Limit Word: ");
-        Serial.println(driverLimitWord);
-        Serial.print("Driver Error Word: ");
-        Serial.println(driverErrorWord);
+    //     // Print the extracted values
+    //     Serial.print("Current Power Map: ");
+    //     Serial.println(currentPowerMap);
+    //     Serial.print("Driver Status Word: ");
+    //     Serial.println(driverStatusWord);
+    //     Serial.print("Driver Limit Word: ");
+    //     Serial.println(driverLimitWord);
+    //     Serial.print("Driver Error Word: ");
+    //     Serial.println(driverErrorWord);
 
-      } else {
-        Serial.println("Received data length is less than expected.");
-      }
-    }
+    //   } else {
+    //     Serial.println("Received data length is less than expected.");
+    //   }
+    // }
 
 
 
@@ -147,8 +187,8 @@ void recieveCANData(){
 // ---------- lynxMotorStatus - 0x610 ----------
 
     if (rx_frame.identifier == lynxMotorStatus) { // Check if the message ID matches the filter ID
-      Serial.print("Filtered CAN message received, ID: 0x");
-      Serial.println(rx_frame.identifier, HEX);
+      // Serial.print("Filtered CAN message received, ID: 0x");
+      // Serial.println(rx_frame.identifier, HEX);
 
       // Read the incoming data
       uint8_t data[8];
@@ -164,18 +204,19 @@ void recieveCANData(){
         vehicleSpeed = data[4] | (data[5] << 8); // 16-bit integer
         motorWatts = data[6] | (data[7] << 8); // 16-bit integer     
 
-        // Print the extracted values
-        Serial.print("Motor Current: ");
-        Serial.println(motorCurrent);
-        Serial.print("Motor RPM: ");
-        Serial.println(motorRpm);
+        vehicleSpeed = vehicleSpeed/100;
+        // // Print the extracted values
+        // Serial.print("Motor Current: ");
+        // Serial.println(motorCurrent);
+        // Serial.print("Motor RPM: ");
+        // Serial.println(motorRpm);
         Serial.print("Vehicle Speed: ");
         Serial.println(vehicleSpeed);
-        Serial.print("Motor Watts: ");
-        Serial.println(motorWatts);
+        // Serial.print("Motor Watts: ");
+        // Serial.println(motorWatts);
 
       } else {
-        Serial.println("Received data length is less than expected.");
+        //Serial.println("Received data length is less than expected.");
       }
     }
 
@@ -188,8 +229,8 @@ void recieveCANData(){
     // ---------- lynxBatteryStatus - 0x618 ----------
 
     if (rx_frame.identifier == lynxBatteryStatus) { // Check if the message ID matches the filter ID
-      Serial.print("Filtered CAN message received, ID: 0x");
-      Serial.println(rx_frame.identifier, HEX);
+      // Serial.print("Filtered CAN message received, ID: 0x");
+      // Serial.println(rx_frame.identifier, HEX);
 
       // Read the incoming data
       uint8_t data[8];
@@ -207,20 +248,20 @@ void recieveCANData(){
         battCurrent = data[6] | (data[7] << 8); // 16-bit integer // batt current        
         battCurrent = battCurrent/100;
 
-        // Print the extracted values
-        Serial.print("Map Type : ");
-        Serial.println(mapType);
-        Serial.print("SOC: ");
-        Serial.println(SOC);
-        Serial.print("Batt Voltage: ");
-        Serial.println(battVoltage);
-        Serial.print("Cell Voltage: ");
-        Serial.println((battVoltage/100)/cellSeriesCount); // V per cell.
-        Serial.print("Batt Current: ");
-        Serial.println(battCurrent);
+        // // Print the extracted values
+        // Serial.print("Map Type : ");
+        // Serial.println(mapType);
+        // Serial.print("SOC: ");
+        // Serial.println(SOC);
+        // Serial.print("Batt Voltage: ");
+        // Serial.println(battVoltage);
+        // Serial.print("Cell Voltage: ");
+        // Serial.println((battVoltage/100)/cellSeriesCount); // V per cell.
+        // Serial.print("Batt Current: ");
+        // Serial.println(battCurrent);
 
       } else {
-        Serial.println("Received data length is less than expected.");
+        //Serial.println("Received data length is less than expected.");
       }
     }
 
@@ -231,8 +272,8 @@ void recieveCANData(){
     // ---------- ODO_trip - 0x620 ----------
 
 if (rx_frame.identifier == ODO_trip) { // Check if the message ID matches the filter ID
-      Serial.print("Filtered CAN message received, ID: 0x");
-      Serial.println(rx_frame.identifier, HEX);
+      // Serial.print("Filtered CAN message received, ID: 0x");
+      // Serial.println(rx_frame.identifier, HEX);
 
       // Read the incoming data
       uint8_t data[8];
@@ -270,15 +311,15 @@ if (rx_frame.identifier == ODO_trip) { // Check if the message ID matches the fi
         ODO = ODOf.f; // assign the 4 bytes to a float
 
 
-        Serial.print("TRIP : ");
-        Serial.println(TRIP);
+        // Serial.print("TRIP : ");
+        // Serial.println(TRIP);
 
-        Serial.print("ODO : ");
-        Serial.println(ODO);
+        // Serial.print("ODO : ");
+        // Serial.println(ODO);
 
 
       } else {
-        Serial.println("Received data length is less than expected.");
+        //Serial.println("Received data length is less than expected.");
       }
     }
 
@@ -286,8 +327,8 @@ if (rx_frame.identifier == ODO_trip) { // Check if the message ID matches the fi
 // ---------- relativeValues - 0x626 ----------
 
     if (rx_frame.identifier == relativeValues) { // Check if the message ID matches the filter ID
-      Serial.print("Filtered CAN message received, ID: 0x");
-      Serial.println(rx_frame.identifier, HEX);
+      // Serial.print("Filtered CAN message received, ID: 0x");
+      // Serial.println(rx_frame.identifier, HEX);
 
       // Read the incoming data
       uint8_t data[8];
@@ -303,55 +344,56 @@ if (rx_frame.identifier == ODO_trip) { // Check if the message ID matches the fi
         relSpeed = data[4] | (data[5] << 8); // 16-bit integer // batt voltage
       
 
-        // Print the extracted values
-        Serial.print("Relative Motor Phase Current : ");
-        Serial.println(relMotorPhaseCurrent);
-        Serial.print("Relative Driver Total Limit: ");
-        Serial.println(relDriverTotLimit);
-        Serial.print("Relative Speed: ");
-        Serial.println(relSpeed);
+        // // Print the extracted values
+        // Serial.print("Relative Motor Phase Current : ");
+        // Serial.println(relMotorPhaseCurrent);
+        // Serial.print("Relative Driver Total Limit: ");
+        // Serial.println(relDriverTotLimit);
+        // Serial.print("Relative Speed: ");
+        // Serial.println(relSpeed);
 
       } else {
-        Serial.println("Received data length is less than expected.");
+        //Serial.println("Received data length is less than expected.");
       }
     }
 
 
 
 
-    // ---------- temps - 0x628 ----------
+    // // ---------- temps - 0x628 ----------
 
-    if (rx_frame.identifier == temps) { // Check if the message ID matches the filter ID
-      Serial.print("Filtered CAN message received, ID: 0x");
-      Serial.println(rx_frame.identifier, HEX);
+    // if (rx_frame.identifier == temps) { // Check if the message ID matches the filter ID
+    //   Serial.print("Filtered CAN message received, ID: 0x");
+    //   Serial.println(rx_frame.identifier, HEX);
 
-      // Read the incoming data
-      uint8_t data[8];
-      int dataLength = rx_frame.data_length_code; // Get the number of bytes in the received message
-      for (int i = 0; i < dataLength; i++) {
-        data[i] = rx_frame.data[i];
-      }
+    //   // Read the incoming data
+    //   uint8_t data[8];
+    //   int dataLength = rx_frame.data_length_code; // Get the number of bytes in the received message
+    //   for (int i = 0; i < dataLength; i++) {
+    //     data[i] = rx_frame.data[i];
+    //   }
 
-      if (dataLength >= 7) { // Ensure there are at least 7 bytes of data
-        // Extracting values considering little-endian format
+    //   if (dataLength >= 7) { // Ensure there are at least 7 bytes of data
+    //     // Extracting values considering little-endian format
 
-        motorRThermistor = data[0] | (data[1] << 8); // 16-bit integer // batt voltage
-        ptcTemp = data[2] | (data[3] << 8); // 16-bit integer // batt current        
-        drivetTemp = data[4]; // 8-bit integer // SOC %
+    //     motorRThermistor = data[0] | (data[1] << 8); // 16-bit integer // batt voltage
+    //     ptcTemp = data[2] | (data[3] << 8); // 16-bit integer // batt current        
+    //     drivetTemp = data[4]; // 8-bit integer // SOC %
 
 
-        // Print the extracted values
-        Serial.print("R Thermistor : ");
-        Serial.println(motorRThermistor);
-        Serial.print("PTC Temp: ");
-        Serial.println(ptcTemp);
-        Serial.print("Drive T Temp: ");
-        Serial.println(drivetTemp);
+    //     // Print the extracted values
+    //     Serial.print("R Thermistor : ");
+    //     Serial.println(motorRThermistor);
+    //     Serial.print("PTC Temp: ");
+    //     Serial.println(ptcTemp);
+    //     Serial.print("Drive T Temp: ");
+    //     Serial.println(drivetTemp);
 
-      } else {
-        Serial.println("Received data length is less than expected.");
-      }
-    }
+    //   } else {
+    //     Serial.println("Received data length is less than expected.");
+    //   }
+    // }
+
 
 
   }
@@ -360,12 +402,17 @@ if (rx_frame.identifier == ODO_trip) { // Check if the message ID matches the fi
     canConnected = false; // used to show connection status 
   }
 }
-
+}
 
 
 
 void draw()
  {
+
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillisDraw >= intervalDraw) {
+    previousMillisDraw = currentMillis;
+
 
 // Text datum examples
 // #define TL_DATUM 0  // Top left (default)
@@ -426,7 +473,7 @@ void draw()
   
 
 
-  // SIMULATE VALUES TESTING
+  //SIMULATE VALUES TESTING
 
   // vehicleSpeed++;
 
@@ -760,7 +807,7 @@ void draw()
 
   lcd_PushColors(0, 0, 240,536, (uint16_t*)sprite.getPointer());
  }
-
+ }
 
 
 
@@ -769,6 +816,6 @@ void draw()
 void loop() {
 
   recieveCANData();
-  draw();
-  delay(20);
+  //draw();
+   
 }
