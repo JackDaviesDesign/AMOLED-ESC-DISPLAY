@@ -37,6 +37,9 @@ TFT_eSprite sprite = TFT_eSprite(&tft);
 CanFrame rxFrame;
 
 
+#define HALLSENSORPIN		40 
+
+
 const uint8_t cellSeriesCount = 21; // Number of batt cells in series. Used to calc V per cell.
 uint16_t SOCAngle; // Value used to drive the ring guage
 uint16_t SOCGuageColor; // Colour change of guage
@@ -62,7 +65,7 @@ int16_t motorWatts; // Motor power [W] - can be neg during regen so int16_t
 uint8_t mapType;  // Map type: 1 - Normal   2 - Restricted   3 - reverse   4 - boost   5 - Reserve map
 uint8_t SOC; // SOC [%]
 float battVoltage; // Battery voltage [0.01 V]
-float battCurrent; // Battery current [0.02 A] - can be neg during regen so int16_t
+float battCurrent; // Battery current [0.02 A] - can be neg during regen
 
 // ODO_trip
 float TRIP; // TRIP [0.01 km ], distance counter. Can by reset from display or CAN command.
@@ -103,6 +106,8 @@ void setup()
   pinMode(38, OUTPUT); // enables the AMOLED screen
   digitalWrite(38, HIGH);
   
+  pinMode(HALLSENSORPIN, OUTPUT); // HALL sensor input
+
 
   sprite.createSprite(240,536);
   sprite.setSwapBytes(1);
@@ -903,6 +908,18 @@ void draw()
  }
  }
 
+ void hallSensor() { // hall sensor input used for estop or speed reduction 
+  
+    Serial.print("Hall Sensor Value : ");
+    Serial.println(analogRead(HALLSENSORPIN));
+
+//   if(analogRead(HALLSENSORPIN)<2000); // magnet is not present
+//  {
+//     // write canbus change map to slow
+//   }
+
+ }
+
 
 
 
@@ -911,5 +928,6 @@ void loop() {
 
   recieveCANData();
   draw();
+  hallSensor();
    
 }
